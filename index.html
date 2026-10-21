@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>200 Hanzi trainer</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Hanzi Writer CDN voor schrijfanimaties -->
+    <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5.0/dist/hanzi-writer.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        atelier: {
+                            bg: '#7ac4b4',       /* Turquoise / muntgroen achtergrond */
+                            card: '#fbf9f5',     /* Warm crème canvas */
+                            primary: '#d96b27',  /* Terracotta oranje */
+                            gold: '#e5c542',     /* Okergeel */
+                            dark: '#222222'      /* Diep inktzwart */
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .chinese-font { font-family: 'Noto Serif SC', serif; }
+    </style>
+</head>
+<body class="bg-atelier-bg text-atelier-dark min-h-screen flex flex-col selection:bg-atelier-primary/20 selection:text-atelier-primary">
+
+    <!-- Header -->
+    <header class="bg-[#fbf9f5]/95 backdrop-blur-md border-b-2 border-atelier-dark sticky top-0 z-30 shadow-md">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-atelier-primary text-white flex items-center justify-center font-bold text-xl shadow-md chinese-font border border-atelier-dark">汉</div>
+                <div>
+                    <h1 class="text-xl font-bold text-atelier-dark tracking-tight">200 Hanzi trainer</h1>
+                    <p class="text-xs text-stone-600">200 Gecontroleerde Karakters • Schrijfanimaties &amp; AI Ezelsbruggetjes</p>
+                </div>
+            </div>
+            <!-- Voortgang & Filters -->
+            <div class="flex flex-wrap items-center gap-3">
+                <div class="text-xs bg-[#f4efe6] border border-stone-400 px-3 py-2 rounded-xl font-medium shadow-inner">
+                    Totaal gekend: <span id="progress-count" class="font-bold text-emerald-700">0</span> / <span id="total-database-count">200</span>
+                </div>
+                <select id="filter-status" class="bg-[#fbf9f5] border border-stone-400 text-sm rounded-xl px-3 py-2 focus:ring-2 focus:ring-atelier-primary focus:outline-none transition shadow-sm font-medium">
+                    <option value="all">⚪ Huidige set / Zoekresultaten</option>
+                    <option value="green">🟢 Groen (Ken ik)</option>
+                    <option value="orange">🟠 Oranje (Ken ik half)</option>
+                    <option value="red">🔴 Vergeet ik steeds</option>
+                    <option value="none">⚪ Nog niet geoefend</option>
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <!-- Toast Melding -->
+    <div id="toast-notification" class="fixed bottom-6 right-6 bg-atelier-dark text-white text-xs px-4 py-3 rounded-2xl shadow-2xl z-50 hidden transition-all duration-300 flex items-center gap-2 border border-stone-600">
+        <span>✨ Prompt gekopieerd! Plak (Cmd+V / Ctrl+V) in Gemini.</span>
+    </div>
+
+    <!-- Main Content -->
+    <main class="max-w-6xl mx-auto px-4 py-8 flex-grow w-full">
+        <!-- Bedieningsbalk -->
+        <div class="mb-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3 w-full sm:w-auto">
+                <button onclick="loadNewRandomSet()" class="px-5 py-2.5 bg-atelier-primary hover:bg-amber-800 text-white font-semibold text-sm rounded-2xl shadow-md transition flex items-center justify-center gap-2 border border-atelier-dark">
+                    <span>🔀 Nieuwe set</span>
+                </button>
+                <select id="set-size-select" onchange="loadNewRandomSet()" class="bg-[#fbf9f5] border border-stone-400 text-xs rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-atelier-primary focus:outline-none transition shadow-sm font-medium text-stone-800">
+                    <option value="5" selected>Set van 5</option>
+                    <option value="10">Set van 10</option>
+                    <option value="15">Set van 15</option>
+                    <option value="20">Set van 20</option>
+                </select>
+            </div>
+
+            <div class="relative w-full sm:w-72">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-stone-500">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </span>
+                <input type="text" id="search-input" placeholder="Zoek op mifan, qian, rijst..." class="w-full pl-9 pr-3 py-2 bg-[#fbf9f5]/90 hover:bg-[#fbf9f5] border border-stone-400 rounded-xl text-xs focus:ring-1 focus:ring-atelier-dark focus:outline-none shadow-xs transition text-stone-800 placeholder-stone-500">
+            </div>
+        </div>
+
+        <!-- Melding actieve set / zoekstatus -->
+        <div id="set-info" class="text-xs text-stone-900 mb-4 font-medium px-1 bg-white/40 backdrop-blur-xs p-2 rounded-xl inline-block border border-stone-300">
+            Huidige set: willekeurige selectie uit de database van 200.
+        </div>
+
+        <!-- Grid van Hanzi Kaarten -->
+        <div id="hanzi-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Dynamisch ingevuld via JS -->
+        </div>
+    </main>
+
+    <!-- Schrijfanimatie Modal -->
+    <div id="writer-modal" class="fixed inset-0 bg-atelier-dark/70 backdrop-blur-xs z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-atelier-card border-2 border-atelier-dark rounded-3xl p-6 shadow-2xl max-w-sm w-full mx-4 text-center relative">
+            <button onclick="closeWriterModal()" class="absolute top-4 right-4 text-stone-500 hover:text-stone-900 font-bold text-lg w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center transition">✕</button>
+            <h3 id="modal-char-title" class="text-lg font-bold text-atelier-dark mb-1">Karakter Schrijven</h3>
+            <p class="text-xs text-stone-600 mb-4">Bekijk de schrijfvolgorde stap voor stap</p>
+            
+            <div id="character-target" class="w-48 h-48 mx-auto bg-amber-50/80 border border-stone-400 rounded-2xl shadow-inner flex items-center justify-center mb-4 relative overflow-hidden"></div>
+            
+            <div class="flex gap-2 justify-center">
+                <button onclick="animateWriter()" class="px-4 py-2 bg-atelier-primary hover:bg-amber-800 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 border border-atelier-dark">
+                    <span>▶ Speel animatie af</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-[#fbf9f5] border-t-2 border-atelier-dark py-4 text-center text-xs text-stone-700">
+        200 Hanzi trainer • Gecontroleerde Database van 200 Karakters
+    </footer>
+
+    <!-- JavaScript Applicatie Logica -->
+    <script>
+        const fullDatabase = [
+            { id: 1, char: "我", pinyin: "wǒ", meaning: "ik, mij", sentences: [{ chinese: "我喜欢学中文。", pinyinFull: "Wǒ xǐhuan xué zhōngwén.", translation: "Ik leer graag Chinees." }] },
+            { id: 2, char: "你", pinyin: "nǐ", meaning: "jij, jou", sentences: [{ chinese: "你好吗？", pinyinFull: "Nǐ hǎo ma?", translation: "Hoe gaat het met je?" }] },
+            { id: 3, char: "他", pinyin: "tā", meaning: "hij, hem", sentences: [{ chinese: "他是我的老师。", pinyinFull: "Tā shì wǒ de lǎoshī.", translation: "Hij is mijn leraar." }] },
+            { id: 4, char: "她", pinyin: "tā", meaning: "zij, haar", sentences: [{ chinese: "她在看书。", pinyinFull: "Tā zài kàn shū.", translation: "Zij leest een boek." }] },
+            { id: 5, char: "是", pinyin: "shì", meaning: "zijn (is, ben)", sentences: [{ chinese: "这是一个好地方。", pinyinFull: "Zhè shì yígè hǎo dìfang.", translation: "Dit is een mooie plek." }] },
+            { id: 6, char: "不", pinyin: "bù", meaning: "niet", sentences: [{ chinese: "我不知道。", pinyinFull: "Wǒ bù zhīdào.", translation: "Ik weet het niet." }] },
+            { id: 7, char: "了", pinyin: "le", meaning: "voltooid partikel", sentences: [{ chinese: "我吃过饭了。", pinyinFull: "Wǒ chīguo fàn le.", translation: "Ik heb al gegeten." }] },
+            { id: 8, char: "在", pinyin: "zài", meaning: "zijn op / bevinden", sentences: [{ chinese: "我在家。", pinyinFull: "Wǒ zài jiā.", translation: "Ik ben thuis." }] },
+            { id: 9, char: "有", pinyin: "yǒu", meaning: "hebben, er is", sentences: [{ chinese: "我有一台电脑。", pinyinFull: "Wǒ yǒu yì tái diànnǎo.", translation: "Ik heb een computer." }] },
+            { id: 10, char: "个", pinyin: "gè", meaning: "algemeen telwoord", sentences: [{ chinese: "这是一个大苹果。", pinyinFull: "Zhè shì yígè dà píngguǒ.", translation: "Dit is een grote appel." }] },
+            { id: 11, char: "人", pinyin: "rén", meaning: "mens, persoon", sentences: [{ chinese: "中国人喜欢喝茶。", pinyinFull: "Zhōngguó rén xǐhuan hē chá.", translation: "Chinezen drinken graag thee." }] },
+            { id: 12, char: "大", pinyin: "dà", meaning: "groot", sentences: [{ chinese: "这是一个大城市。", pinyinFull: "Zhè shì yígè dà chéngshì.", translation: "Dit is een grote stad." }] },
+            { id: 13, char: "中", pinyin: "zhōng", meaning: "midden, Chinees", sentences: [{ chinese: "我在中国学习。", pinyinFull: "Wǒ zài zhōngguó xuéxí.", translation: "Ik studeer in China." }] },
+            { id: 14, char: "国", pinyin: "guó", meaning: "land, staat", sentences: [{ chinese: "我爱我们的国家。", pinyinFull: "Wǒ ài wǒmen de guójiā.", translation: "Ik hou van ons land." }] },
+            { id: 15, char: "年", pinyin: "nián", meaning: "jaar", sentences: [{ chinese: "今年天气很好。", pinyinFull: "Jīntiān tiānqì hěn hǎo.", translation: "Het weer is dit jaar erg goed." }] },
+            { id: 16, char: "生", pinyin: "shēng", meaning: "geboren worden", sentences: [{ chinese: "今天是我的生日。", pinyinFull: "Jīntiān shì wǒ de shēngrì.", translation: "Vandaag ben ik jarig." }] },
+            { id: 17, char: "学", pinyin: "xué", meaning: "studeren, leren", sentences: [{ chinese: "学习中文很有趣。", pinyinFull: "Xuéxí zhōngwén hěn yǒuqù.", translation: "Chinees leren is leuk." }] },
+            { id: 18, char: "校", pinyin: "xiào", meaning: "school", sentences: [{ chinese: "我在学校上课。", pinyinFull: "Wǒ zài xuéxiào shàngkè.", translation: "Ik heb les op school." }] },
+            { id: 19, char: "老", pinyin: "lǎo", meaning: "oud, ervaren", sentences: [{ chinese: "老师教我们汉语。", pinyinFull: "Lǎoshī jiāo wǒmen hànyǔ.", translation: "De leraar leert ons Chinees." }] },
+            { id: 20, char: "师", pinyin: "shī", meaning: "meester, leraar", sentences: [{ chinese: "老师人很好。", pinyinFull: "Lǎoshī rén hěn hǎo.", translation: "De leraar is erg aardig." }] },
+            { id: 21, char: "火", pinyin: "huǒ", meaning: "vuur", sentences: [{ chinese: "坐火车去旅行。", pinyinFull: "Zuò huǒchē qù lǚxíng.", translation: "Reizen met de trein." }] },
+            { id: 22, char: "飞", pinyin: "fēi", meaning: "vliegen", sentences: [{ chinese: "我坐飞机去。", pinyinFull: "Wǒ zuò fēijī qù.", translation: "Ik ga met het vliegtuig." }] },
+            { id: 23, char: "机", pinyin: "jī", meaning: "machine, toestel", sentences: [{ chinese: "我的手机没电了。", pinyinFull: "Wǒ de shǒujī méi diàn le.", translation: "Mijn telefoon is leeg." }] },
+            { id: 24, char: "汽", pinyin: "qì", meaning: "stoom, gas", sentences: [{ chinese: "路上有很多汽车。", pinyinFull: "Lùshang yǒu hěn duō qìchē.", translation: "Er rijden veel auto's." }] },
+            { id: 25, char: "车", pinyin: "chē", meaning: "auto, voertuig", sentences: [{ chinese: "我每天坐车上班。", pinyinFull: "Wǒ měitiān zuò chē shàngbān.", translation: "Ik ga met de auto naar werk." }] },
+            { id: 26, char: "自", pinyin: "zì", meaning: "zelf", sentences: [{ chinese: "这是你自己做的吗？", pinyinFull: "Zhè shì nǐ zìjǐ zuò de ma?", translation: "Heb je dit zelf gemaakt?" }] },
+            { id: 27, char: "行", pinyin: "xíng", meaning: "gaan, in orde", sentences: [{ chinese: "骑自行车很健康。", pinyinFull: "Qí zìxíngchē hěn jiànkāng.", translation: "Fietsen is gezond." }] },
+            { id: 28, char: "电", pinyin: "diàn", meaning: "elektriciteit", sentences: [{ chinese: "我有一台电脑。", pinyinFull: "Wǒ yǒu yì tái diànnǎo.", translation: "Ik heb een computer." }] },
+            { id: 29, char: "视", pinyin: "shì", meaning: "kijken, visueel", sentences: [{ chinese: "晚上我喜欢看电视。", pinyinFull: "Wǎnshang wǒ xǐhuan kàn diànshì.", translation: "'s Avonds kijk ik TV." }] },
+            { id: 30, char: "脑", pinyin: "nǎo", meaning: "hersenen", sentences: [{ chinese: "电脑坏了需要修理。", pinyinFull: "Diànnǎo huài le xūyào xiūlǐ.", translation: "De computer is kapot." }] },
+            { id: 31, char: "咖", pinyin: "kā", meaning: "koffie (1)", sentences: [{ chinese: "我喜欢喝咖啡。", pinyinFull: "Wǒ xǐhuan hē kāfēi.", translation: "Ik drink graag koffie." }] },
+            { id: 32, char: "啡", pinyin: "fēi", meaning: "koffie (2)", sentences: [{ chinese: "这家咖啡馆很好。", pinyinFull: "Zhè jiā kāfēiguǎn hěn hǎo.", translation: "Dit café is erg goed." }] },
+            { id: 33, char: "饭", pinyin: "fàn", meaning: "rijst, maaltijd", sentences: [{ chinese: "我们在饭馆吃饭。", pinyinFull: "Wǒmen zài fànguǎn chīfàn.", translation: "We eten in het restaurant." }] },
+            { id: 34, char: "馆", pinyin: "guǎn", meaning: "gebouw", sentences: [{ chinese: "去图书馆看书。", pinyinFull: "Qù túshūguǎn kàn shū.", translation: "Naar de bibliotheek om te lezen." }] },
+            { id: 35, char: "杯", pinyin: "bēi", meaning: "beker, glas", sentences: [{ chinese: "请来一杯绿茶。", pinyinFull: "Qǐng lái yì bēi lǜchá.", translation: "Een kop groene thee alstublieft." }] },
+            { id: 36, char: "超", pinyin: "chāo", meaning: "super", sentences: [{ chinese: "我要去超市买水果。", pinyinFull: "Wǒ yào qù chāoshì mǎi shuǐguǒ.", translation: "Ik ga fruit kopen in de supermarkt." }] },
+            { id: 37, char: "市", pinyin: "shì", meaning: "markt, stad", sentences: [{ chinese: "市中心有很多商店。", pinyinFull: "Shì zhōngxīn yǒu hěn duō shāngdiàn.", translation: "In het centrum zijn winkels." }] },
+            { id: 38, char: "店", pinyin: "diàn", meaning: "winkel", sentences: [{ chinese: "这家商店卖水果。", pinyinFull: "Zhè jiā shāngdiàn mài shuǐguǒ.", translation: "Deze winkel verkoopt fruit." }] },
+            { id: 39, char: "买", pinyin: "mǎi", meaning: "kopen", sentences: [{ chinese: "买东西需要钱。", pinyinFull: "Mǎi dōngxi xūyào qián.", translation: "Je hebt geld nodig om te kopen." }] },
+            { id: 40, char: "卖", pinyin: "mài", meaning: "verkopen", sentences: [{ chinese: "他卖新鲜水果。", pinyinFull: "Tā mài xīnxiān shuǐguǒ.", translation: "Hij verkoopt vers fruit." }] },
+            { id: 41, char: "钱", pinyin: "qián", meaning: "geld", sentences: [{ chinese: "这件衣服多少钱？", pinyinFull: "Zhè jiàn yīfu duōshao qián?", translation: "Hoeveel kost dit kledingstuk?" }] },
+            { id: 42, char: "银", pinyin: "yín", meaning: "zilver, bank", sentences: [{ chinese: "我要去银行取钱。", pinyinFull: "Wǒ yào qù yínháng qǔ qián.", translation: "Ik moet geld pinnen bij de bank." }] },
+            { id: 43, char: "水", pinyin: "shuǐ", meaning: "water", sentences: [{ chinese: "多喝水对身体好。", pinyinFull: "Duō hē shuǐ duì shēntǐ hǎo.", translation: "Veel water drinken is gezond." }] },
+            { id: 44, char: "茶", pinyin: "chá", meaning: "thee", sentences: [{ chinese: "中国人喜欢喝茶。", pinyinFull: "Zhōngguó rén xǐhuan hē chá.", translation: "Chinezen drinken graag thee." }] },
+            { id: 45, char: "果", pinyin: "guǒ", meaning: "fruit", sentences: [{ chinese: "多吃新鲜水果。", pinyinFull: "Duō chī xīnxiān shuǐguǒ.", translation: "Eet veel vers fruit." }] },
+            { id: 46, char: "菜", pinyin: "cài", meaning: "groente, gerecht", sentences: [{ chinese: "中国菜非常好吃。", pinyinFull: "Zhōngguó cài fēicháng hǎochī.", translation: "Chinees eten is lekker." }] },
+            { id: 47, char: "好", pinyin: "hǎo", meaning: "goed", sentences: [{ chinese: "今天天气很好。", pinyinFull: "Jīntiān tiānqì hěn hǎo.", translation: "Het weer is vandaag erg goed." }] },
+            { id: 48, char: "听", pinyin: "tīng", meaning: "luisteren", sentences: [{ chinese: "我在听音乐。", pinyinFull: "Wǒ zài tīng yīnyuè.", translation: "Ik luister naar muziek." }] },
+            { id: 49, char: "说", pinyin: "shuō", meaning: "spreken, zeggen", sentences: [{ chinese: "他说中文很好。", pinyinFull: "Tā shuō zhōngwén hěn hǎo.", translation: "Hij spreekt goed Chinees." }] },
+            { id: 50, char: "读", pinyin: "dú", meaning: "lezen", sentences: [{ chinese: "我喜欢读书。", pinyinFull: "Wǒ xǐhuan dú shū.", translation: "Ik lees graag boeken." }] },
+            { id: 51, char: "写", pinyin: "xiě", meaning: "schrijven", sentences: [{ chinese: "你在写什么？", pinyinFull: "Nǐ zài xiě shénme?", translation: "Wat ben je aan het schrijven?" }] },
+            { id: 52, char: "字", pinyin: "zì", meaning: "karakter, teken", sentences: [{ chinese: "汉字很有意思。", pinyinFull: "Hànzì hěn yǒu yìsi.", translation: "Chinese karakters zijn boeiend." }] },
+            { id: 53, char: "看", pinyin: "kān", meaning: "kijken, lezen", sentences: [{ chinese: "请看黑板。", pinyinFull: "Qǐng kàn hēibǎn.", translation: "Kijk alstublieft naar het bord." }] },
+            { id: 54, char: "家", pinyin: "jiā", meaning: "familie, huis", sentences: [{ chinese: "我明天回家。", pinyinFull: "Wǒ míngtiān huí jiā.", translation: "Ik ga morgen naar huis." }] },
+            { id: 55, char: "小", pinyin: "xiǎo", meaning: "klein", sentences: [{ chinese: "这只小狗很可爱。", pinyinFull: "Zhè zhī xiǎogǒu hěn kě'ài.", translation: "Dit hondje is erg schattig." }] },
+            { id: 56, char: "多", pinyin: "duō", meaning: "veel", sentences: [{ chinese: "这里有很多树。", pinyinFull: "Zhělǐ yǒu hěn duō shù.", translation: "Er staan hier veel bomen." }] },
+            { id: 57, char: "少", pinyin: "shǎo", meaning: "weinig", sentences: [{ chinese: "杯子里水很少。", pinyinFull: "Bēizi li shuǐ hěn shǎo.", translation: "Er zit weinig water in het glas." }] },
+            { id: 58, char: "冷", pinyin: "lěng", meaning: "koud", sentences: [{ chinese: "今天外面很冷。", pinyinFull: "Jīntiān wàimiàn hěn lěng.", translation: "Het is erg koud buiten vandaag." }] },
+            { id: 59, char: "热", pinyin: "rè", meaning: "heet, warm", sentences: [{ chinese: "天气太热了。", pinyinFull: "Tiānqì tài rè le.", translation: "Het weer is veel te warm." }] },
+            { id: 60, char: "高", pinyin: "gāo", meaning: "hoog, lang", sentences: [{ chinese: "这座山很高。", pinyinFull: "Zhè zuò shān hěn gāo.", translation: "Deze berg is erg hoog." }] },
+            { id: 61, char: "兴", pinyin: "xīng", meaning: "blij, vrolijk", sentences: [{ chinese: "认识你很高兴。", pinyinFull: "Rènshi nǐ hěn gāoxìng.", translation: "Leuk om je te ontmoeten." }] },
+            { id: 62, char: "吃", pinyin: "chī", meaning: "eten", sentences: [{ chinese: "你想吃什么？", pinyinFull: "Nǐ xiǎng chī shénme?", translation: "Wat wil je eten?" }] },
+            { id: 63, char: "喝", pinyin: "hē", meaning: "drinken", sentences: [{ chinese: "你想喝水吗？", pinyinFull: "Nǐ xiǎng hē shuǐ ma?", translation: "Wil je water drinken?" }] },
+            { id: 64, char: "开", pinyin: "kāi", meaning: "openen, rijden", sentences: [{ chinese: "请把门打开。", pinyinFull: "Qǐng bǎ mén dǎkāi.", translation: "Doe de deur open alstublieft." }] },
+            { id: 65, char: "关", pinyin: "guān", meaning: "sluiten", sentences: [{ chinese: "请关上窗户。", pinyinFull: "Qǐng guānshang chuānghu.", translation: "Sluit het raam alstublieft." }] },
+            { id: 66, char: "对", pinyin: "duì", meaning: "juist, correct", sentences: [{ chinese: "你说得对。", pinyinFull: "Nǐ shuō de duì.", translation: "Je hebt gelijk." }] },
+            { id: 67, char: "错", pinyin: "cuò", meaning: "fout", sentences: [{ chinese: "这不是你的错。", pinyinFull: "Zhè bú shì nǐ de cuò.", translation: "Dit is niet jouw fout." }] },
+            { id: 68, char: "问", pinyin: "wèn", meaning: "vragen", sentences: [{ chinese: "我可以问个问题吗？", pinyinFull: "Wǒ kěyǐ wèn gè wèntí ma?", translation: "Mag ik een vraag stellen?" }] },
+            { id: 69, char: "走", pinyin: "zǒu", meaning: "lopen, gaan", sentences: [{ chinese: "我们走吧。", pinyinFull: "Wǒmen zǒu ba.", translation: "Laten we gaan." }] },
+            { id: 70, char: "等", pinyin: "děng", meaning: "wachten", sentences: [{ chinese: "请等一下。", pinyinFull: "Qǐng děng yíxià.", translation: "Wacht even alstublieft." }] },
+            { id: 71, char: "爱", pinyin: "ài", meaning: "houden van", sentences: [{ chinese: "我爱我的家。", pinyinFull: "Wǒ ài wǒ de jiā.", translation: "Ik hou van mijn familie." }] },
+            { id: 72, char: "喜", pinyin: "xǐ", meaning: "vreugde", sentences: [{ chinese: "我喜欢学中文。", pinyinFull: "Wǒ xǐhuan xué zhōngwén.", translation: "Ik leer graag Chinees." }] },
+            { id: 73, char: "欢", pinyin: "huān", meaning: "vrolijk", sentences: [{ chinese: "大家都很高兴。", pinyinFull: "Dàjiā dōu hěn gāoxìng.", translation: "Iedereen is erg vrolijk." }] },
+            { id: 74, char: "快", pinyin: "kuài", meaning: "snel, blij", sentences: [{ chinese: "祝你生日快乐！", pinyinFull: "Zhù nǐ shēngrì kuàilè!", translation: "Gefeliciteerd met je verjaardag!" }] },
+            { id: 75, char: "乐", pinyin: "lè", meaning: "plezier, muziek", sentences: [{ chinese: "音乐很好听。", pinyinFull: "Yīnyuè hěn hǎotīng.", translation: "De muziek klinkt erg mooi." }] },
+            { id: 76, char: "阳", pinyin: "yáng", meaning: "zon", sentences: [{ chinese: "今天的阳光很好。", pinyinFull: "Jīntiān de yángguāng hěn hǎo.", translation: "Het zonnetje schijnt vandaag heerlijk." }] },
+            { id: 77, char: "月", pinyin: "yuè", meaning: "maan, maand", sentences: [{ chinese: "今天几月几号？", pinyinFull: "Jīntiān jǐ yuè jǐ hào?", translation: "Welke datum is het vandaag?" }] },
+            { id: 78, char: "日", pinyin: "rì", meaning: "dag, zon", sentences: [{ chinese: "今天是星期日。", pinyinFull: "Jīntiān shì xīngqīrì.", translation: "Het is vandaag zondag." }] },
+            { id: 79, char: "星", pinyin: "xīng", meaning: "ster", sentences: [{ chinese: "天上有很多星星。", pinyinFull: "Tiānshàng yǒu hěn duō xīngxing.", translation: "Er staan veel sterren aan de hemel." }] },
+            { id: 80, char: "期", pinyin: "qī", meaning: "periode", sentences: [{ chinese: "今天是星期几？", pinyinFull: "Jīntiān shì xīngqī jǐ?", translation: "Welke dag van de week is het vandaag?" }] },
+            { id: 81, char: "本", pinyin: "běn", meaning: "boek, oorsprong", sentences: [{ chinese: "这是一本好书。", pinyinFull: "Zhè shì yì běn hǎo shū.", translation: "Dit is een goed boek." }] },
+            { id: 82, char: "书", pinyin: "shū", meaning: "boek", sentences: [{ chinese: "我在图书馆看书。", pinyinFull: "Wǒ zài túshūguǎn kàn shū.", translation: "Ik lees een boek in de bibliotheek." }] },
+            { id: 83, char: "词", pinyin: "cí", meaning: "woord", sentences: [{ chinese: "这个词是什么意思？", pinyinFull: "Zhège cí shì shénme yìsi?", translation: "Wat betekent dit woord?" }] },
+            { id: 84, char: "语", pinyin: "yǔ", meaning: "taal", sentences: [{ chinese: "汉语很有趣。", pinyinFull: "Hànyǔ hěn yǒuqù.", translation: "De Chinese taal is erg interessant." }] },
+            { id: 85, char: "言", pinyin: "yán", meaning: "woorden, taal", sentences: [{ chinese: "语言需要多练习。", pinyinFull: "Yǔyán xūyào duō liànxí.", translation: "Een taal vereist veel oefening." }] },
+            { id: 86, char: "话", pinyin: "huà", meaning: "gesprek, woorden", sentences: [{ chinese: "请听我说话。", pinyinFull: "Qǐng tīng wǒ shuōhuà.", translation: "Luister naar wat ik zeg." }] },
+            { id: 87, char: "题", pinyin: "tí", meaning: "onderwerp, vraag", sentences: [{ chinese: "这个问题很难。", pinyinFull: "Zhège wèntí hěn nán.", translation: "Deze vraag is erg moeilijk." }] },
+            { id: 88, char: "答", pinyin: "dá", meaning: "antwoorden", sentences: [{ chinese: "请回答我的问题。", pinyinFull: "Qǐng huídá wǒ de wèntí.", translation: "Beantwoord mijn vraag alstublieft." }] },
+            { id: 89, char: "房", pinyin: "fáng", meaning: "huis, kamer", sentences: [{ chinese: "这是一间大房子。", pinyinFull: "Zhè shì yì jiàn dà fángzi.", translation: "Dit is een groot huis." }] },
+            { id: 90, char: "间", pinyin: "jiān", meaning: "ruimte, tussen", sentences: [{ chinese: "我的房间很干净。", pinyinFull: "Wǒ de fángjiān hěn gānjìng.", translation: "Mijn kamer is erg schoon." }] },
+            { id: 91, char: "窗", pinyin: "chuāng", meaning: "raam", sentences: [{ chinese: "打开窗户通风。", pinyinFull: "Dǎkāi chuānghu tōngfēng.", translation: "Open het raam voor frisse lucht." }] },
+            { id: 92, char: "桌", pinyin: "zhuō", meaning: "tafel", sentences: [{ chinese: "桌子上有一本书。", pinyinFull: "Zhuōzi shang yǒu yì běn shū.", translation: "Er ligt een boek op tafel." }] },
+            { id: 93, char: "椅", pinyin: "yǐ", meaning: "stoel", sentences: [{ chinese: "请坐在椅子上。", pinyinFull: "Qǐng zuò zài yǐzi shang.", translation: "Ga alstublieft op de stoel zitten." }] },
+            { id: 94, char: "床", pinyin: "chuáng", meaning: "bed", sentences: [{ chinese: "累了就去床上休息。", pinyinFull: "Lèi le jiù qù chuángshang xiūxi.", translation: "Als je moe bent, ga dan uitrusten op bed." }] },
+            { id: 95, char: "衣", pinyin: "yī", meaning: "kleding", sentences: [{ chinese: "这件衣服很漂亮。", pinyinFull: "Zhè jiàn yīfu hěn piàoliang.", translation: "Dit kledingstuk is erg mooi." }] },
+            { id: 96, char: "服", pinyin: "fú", meaning: "kleding", sentences: [{ chinese: "穿上舒服的衣服。", pinyinFull: "Chuānshang shūfu de yīfu.", translation: "Draag comfortabele kleding." }] },
+            { id: 97, char: "鞋", pinyin: "xié", meaning: "schoen", sentences: [{ chinese: "换一双新鞋。", pinyinFull: "Huàn yì shuāng xīn xié.", translation: "Trek een paar nieuwe schoenen aan." }] },
+            { id: 98, char: "帽", pinyin: "mào", meaning: "hoed, muts", sentences: [{ chinese: "戴上一顶帽子。", pinyinFull: "Dài shang yì dǐng màozi.", translation: "Draag een hoed." }] },
+            { id: 99, char: "裤", pinyin: "kù", meaning: "broek", sentences: [{ chinese: "这条裤子很长。", pinyinFull: "Zhè tiáo kùzi hěn cháng.", translation: "Deze broek is erg lang." }] },
+            { id: 100, char: "包", pinyin: "bāo", meaning: "tas, pakket", sentences: [{ chinese: "我的包里有电脑。", pinyinFull: "Wǒ de bāo li yǒu diànnǎo.", translation: "In mijn tas zit een computer." }] },
+            { id: 101, char: "卡", pinyin: "kǎ", meaning: "kaart, pinpas", sentences: [{ chinese: "可以直接刷卡。", pinyinFull: "Kěyǐ zhíjiē shuākǎ.", translation: "Je kunt direct pinnen." }] },
+            { id: 102, char: "商", pinyin: "shāng", meaning: "handel, winkel", sentences: [{ chinese: "商店里有很多人。", pinyinFull: "Shāngdiàn li yǒu hěn duō rén.", translation: "Er zijn veel mensen in de winkel." }] },
+            { id: 103, char: "场", pinyin: "chǎng", meaning: "plein, terrein", sentences: [{ chinese: "去机场送朋友。", pinyinFull: "Qù jīchǎng sòng péngyou.", translation: "Naar het vliegveld om een vriend weg te brengen." }] },
+            { id: 104, char: "路", pinyin: "lù", meaning: "weg, straat", sentences: [{ chinese: "这条路通向市中心。", pinyinFull: "Zhè tiáo lù tōngxiàng shì zhōngxīn.", translation: "Deze weg leidt naar het stadscentrum." }] },
+            { id: 105, char: "桥", pinyin: "qiáo", meaning: "brug", sentences: [{ chinese: "走过这座桥。", pinyinFull: "Zǒu guò zhè zuò qiáo.", translation: "Loop over deze brug heen." }] },
+            { id: 106, char: "城", pinyin: "chéng", meaning: "stad", sentences: [{ chinese: "这座城市很有名。", pinyinFull: "Zhè zuò chéngshì hěn yǒumíng.", translation: "Deze stad is erg beroemd." }] },
+            { id: 107, char: "镇", pinyin: "zhèn", meaning: "dorp, stadje", sentences: [{ chinese: "这是一个安静的小镇。", pinyinFull: "Zhè shì yígè ānjìng de xiǎo zhèn.", translation: "Dit is een rustig stadje." }] },
+            { id: 108, char: "村", pinyin: "cūn", meaning: "dorp", sentences: [{ chinese: "村子里风景优美。", pinyinFull: "Cūnzi li fēngjǐng yōuměi.", translation: "Het landschap in het dorp is prachtig." }] },
+            { id: 109, char: "山", pinyin: "shān", meaning: "berg", sentences: [{ chinese: "周末去爬山。", pinyinFull: "Zhōumò qù pá shān.", translation: "In het weekend gaan we bergklimmen." }] },
+            { id: 110, char: "河", pinyin: "hé", meaning: "rivier", sentences: [{ chinese: "河水很清澈。", pinyinFull: "Héshuǐ hěn qīngchè.", translation: "Het rivierwater is erg helder." }] },
+            { id: 111, char: "海", pinyin: "hǎi", meaning: "zee, oceaan", sentences: [{ chinese: "去看大海。", pinyinFull: "Qù kàn dà hǎi.", translation: "Gaan kijken naar de zee." }] },
+            { id: 112, char: "湖", pinyin: "hú", meaning: "meer", sentences: [{ chinese: "湖面上有一只船。", pinyinFull: "Húmiàn shang yǒu yì zhī chuán.", translation: "Er vaart een boot op het meer." }] },
+            { id: 113, char: "树", pinyin: "shù", meaning: "boom", sentences: [{ chinese: "公园里有很多树。", pinyinFull: "Gōngyuán li yǒu hěn duō shù.", translation: "Er staan veel bomen in het park." }] },
+            { id: 114, char: "花", pinyin: "huā", meaning: "bloem", sentences: [{ chinese: "花园里的花开了。", pinyinFull: "Huāyuán li de huā kāi le.", translation: "De bloemen in de tuin bloeien." }] },
+            { id: 115, char: "草", pinyin: "cǎo", meaning: "gras", sentences: [{ chinese: "不要踩草坪。", pinyinFull: "Bú yào cǎi cǎopíng.", translation: "Loop niet over het gras." }] },
+            { id: 116, char: "肉", pinyin: "ròu", meaning: "vlees", sentences: [{ chinese: "我不吃肉。", pinyinFull: "Wǒ bù chī ròu.", translation: "Ik eet geen vlees." }] },
+            { id: 117, char: "鱼", pinyin: "yú", meaning: "vis", sentences: [{ chinese: "我喜欢吃鱼。", pinyinFull: "Wǒ xǐhuan chī yú.", translation: "Ik eet graag vis." }] },
+            { id: 118, char: "鸡", pinyin: "jī", meaning: "kip", sentences: [{ chinese: "午饭吃鸡肉。", pinyinFull: "Wǔfàn chī jīròu.", translation: "Tijdens de lunch eten we kippenvlees." }] },
+            { id: 119, char: "蛋", pinyin: "dàn", meaning: "ei", sentences: [{ chinese: "早饭吃鸡蛋。", pinyinFull: "Zǎofàn chī jīdàn.", translation: "Tijdens het ontbijt eten we eieren." }] },
+            { id: 120, char: "奶", pinyin: "nǎi", meaning: "melk", sentences: [{ chinese: "每天喝一杯牛奶。", pinyinFull: "Měitiān hē yì bēi niúnǎi.", translation: "Drink elke dag een glas melk." }] },
+            { id: 121, char: "糖", pinyin: "táng", meaning: "suiker, snoep", sentences: [{ chinese: "少吃糖对牙齿好。", pinyinFull: "Shǎo chī táng duì yáchǐ hǎo.", translation: "Minder suiker eten is goed voor je tanden." }] },
+            { id: 122, char: "盐", pinyin: "yán", meaning: "zout", sentences: [{ chinese: "汤里加了一点盐。", pinyinFull: "Tāng li jiā le yìdiǎn yán.", translation: "Er is een beetje zout aan de soep toegevoegd." }] },
+            { id: 123, char: "油", pinyin: "yóu", meaning: "olie", sentences: [{ chinese: "炒菜需要用油。", pinyinFull: "Chǎocài xūyào yòng yóu.", translation: "Om te roerbakken heb je olie nodig." }] },
+            { id: 124, char: "味", pinyin: "wèi", meaning: "smaak", sentences: [{ chinese: "这道菜味道很好。", pinyinFull: "Zhè dào cài wèidao hěn hǎo.", translation: "Dit gerecht smaakt erg lekker." }] },
+            { id: 125, char: "香", pinyin: "xiāng", meaning: "geurig, lekker", sentences: [{ chinese: "这碗饭真香。", pinyinFull: "Zhè wǎn fàn zhēn xiāng.", translation: "Deze kom rijst ruikt heerlijk." }] },
+            { id: 126, char: "体", pinyin: "tǐ", meaning: "lichaam", sentences: [{ chinese: "多运动对身体好。", pinyinFull: "Duō yùndòng duì shēntǐ hǎo.", translation: "Veel bewegen is goed voor het lichaam." }] },
+            { id: 127, char: "心", pinyin: "xīn", meaning: "hart, geest", sentences: [{ chinese: "我们要对自己有信心。", pinyinFull: "Wǒmen yào duì zìjǐ yǒu xìnxīn.", translation: "We moeten zelfvertrouwen hebben." }] },
+            { id: 128, char: "头", pinyin: "tóu", meaning: "hoofd", sentences: [{ chinese: "头疼的时候要休息。", pinyinFull: "Tóuténg de shíhou yào xiūxi.", translation: "Als je hoofdpijn hebt, moet je rusten." }] },
+            { id: 129, char: "手", pinyin: "shǒu", meaning: "hand", sentences: [{ chinese: "请举手回答。", pinyinFull: "Qǐng jǔshǒu huídá.", translation: "Steek je hand op om te antwoorden." }] },
+            { id: 130, char: "脚", pinyin: "jiǎo", meaning: "voet", sentences: [{ chinese: "走路用脚。", pinyinFull: "Zǒulù yòng jiǎo.", translation: "Om te lopen gebruik je je voeten." }] },
+            { id: 131, char: "目", pinyin: "mù", meaning: "oog", sentences: [{ chinese: "请注意看黑板。", pinyinFull: "Qǐng zhùyì kàn hēibǎn.", translation: "Let alstublieft op het bord." }] },
+            { id: 132, char: "耳", pinyin: "ěr", meaning: "oor", sentences: [{ chinese: "用耳朵听。", pinyinFull: "Yòng ěrduo tīng.", translation: "Luister met je oren." }] },
+            { id: 133, char: "口", pinyin: "kǒu", meaning: "mond", sentences: [{ chinese: "请张开口。", pinyinFull: "Qǐng zhāngkāi kǒu.", translation: "Open je mond alstublieft." }] },
+            { id: 134, char: "牙", pinyin: "yá", meaning: "tand", sentences: [{ chinese: "早晚要刷牙。", pinyinFull: "Zǎowǎn yào shuāyá.", translation: "Poets je tanden 's ochtends en 's avonds." }] },
+            { id: 135, char: "舌", pinyin: "shé", meaning: "tong", sentences: [{ chinese: "品尝美食。", pinyinFull: "Pǐncháng měishí.", translation: "Proef het lekkere eten." }] },
+            { id: 136, char: "情", pinyin: "qíng", meaning: "gevoel, humeur", sentences: [{ chinese: "今天心情很好。", pinyinFull: "Jīntiān xīnqíng hěn hǎo.", translation: "Ik heb vandaag een heel goed humeur." }] },
+            { id: 137, char: "意", pinyin: "yì", meaning: "betekenis, idee", sentences: [{ chinese: "这个意思很简单。", pinyinFull: "Zhège yìsi hěn jiǎndān.", translation: "Deze betekenis is erg eenvoudig." }] },
+            { id: 138, char: "思", pinyin: "sī", meaning: "denken", sentences: [{ chinese: "多动脑筋思考。", pinyinFull: "Duō dòng nǎojīn sīkǎo.", translation: "Gebruik je verstand om na te denken." }] },
+            { id: 139, char: "想", pinyin: "xiǎng", meaning: "willen, denken", sentences: [{ chinese: "我想去旅行。", pinyinFull: "Wǒ xiǎng qù lǚxíng.", translation: "Ik wil op reis gaan." }] },
+            { id: 140, char: "念", pinyin: "niàn", meaning: "lezen, missen", sentences: [{ chinese: "我很想念家人。", pinyinFull: "Wǒ hěn xiǎngniàn jiārén.", translation: "Ik miss mijn familie erg." }] },
+            { id: 141, char: "觉", pinyin: "jué", meaning: "voelen", sentences: [{ chinese: "我觉得很累。", pinyinFull: "Wǒ juédé hěn lèi.", translation: "Ik voel me erg moe." }] },
+            { id: 142, char: "懂", pinyin: "dǒng", meaning: "begrijpen", sentences: [{ chinese: "我听懂了。", pinyinFull: "Wǒ tīng dǒng le.", translation: "Ik heb het begrepen." }] },
+            { id: 143, char: "知", pinyin: "zhī", meaning: "weten", sentences: [{ chinese: "我不知道。", pinyinFull: "Wǒ bù zhīdào.", translation: "Ik weet het niet." }] },
+            { id: 144, char: "道", pinyin: "dào", meaning: "weg, methode", sentences: [{ chinese: "我知道答案。", pinyinFull: "Zhīdào dá'àn.", translation: "Ik weet het antwoord." }] },
+            { id: 145, char: "认", pinyin: "rèn", meaning: "herkennen", sentences: [{ chinese: "认识你很高兴。", pinyinFull: "Rènshi nǐ hěn gāoxìng.", translation: "Leuk om je te ontmoeten." }] },
+            { id: 146, char: "识", pinyin: "shí", meaning: "kennis, herkennen", sentences: [{ chinese: "互相认识。", pinyinFull: "Hùxiāng rènshi.", translation: "Elkaar leren kennen." }] },
+            { id: 147, char: "记", pinyin: "jì", meaning: "onthouden", sentences: [{ chinese: "请记住这个规则。", pinyinFull: "Qǐng jìzhù zhège guīzé.", translation: "Onthoud deze regel alstublieft." }] },
+            { id: 148, char: "忆", pinyin: "yì", meaning: "herinnering", sentences: [{ chinese: "美好的回忆。", pinyinFull: "Měihǎo de huíyì.", translation: "Mooie herinneringen." }] },
+            { id: 149, char: "忘", pinyin: "wàng", meaning: "vergeten", sentences: [{ chinese: "我差点忘了。", pinyinFull: "Wǒ chàdiǎn wàng le.", translation: "Ik was het bijna vergeten." }] },
+            { id: 150, char: "真", pinyin: "zhēn", meaning: "echt, waar", sentences: [{ chinese: "是真的吗？", pinyinFull: "Zhēn de ma?", translation: "Is het echt waar?" }] },
+            { id: 151, char: "假", pinyin: "jiǎ", meaning: "nep, onwaar", sentences: [{ chinese: "这不是假的。", pinyinFull: "Bú shì jiǎ de.", translation: "Dit is niet nep." }] },
+            { id: 152, char: "虚", pinyin: "xū", meaning: "leeg, bescheiden", sentences: [{ chinese: "虚心学习。", pinyinFull: "Xūxīn xuéxí.", translation: "Bescheiden leren." }] },
+            { id: 153, char: "实", pinyin: "shí", meaning: "echt, werkelijk", sentences: [{ chinese: "这是事实。", pinyinFull: "Zhè shì shìshí.", translation: "Dit is een feit." }] },
+            { id: 154, char: "空", pinyin: "kōng", meaning: "lucht, leeg", sentences: [{ chinese: "天空很蓝。", pinyinFull: "Tiānkōng hěn lán.", translation: "De lucht is erg blauw." }] },
+            { id: 155, char: "满", pinyin: "mǎn", meaning: "vol", sentences: [{ chinese: "杯子满了。", pinyinFull: "Bēizi mǎn le.", translation: "Het glas is vol." }] },
+            { id: 156, char: "新", pinyin: "xīn", meaning: "nieuw", sentences: [{ chinese: "买了一辆新车。", pinyinFull: "Mǎi le yí liàng xīn chē.", translation: "Een nieuwe auto gekocht." }] },
+            { id: 157, char: "旧", pinyin: "jiù", meaning: "oud", sentences: [{ chinese: "这是旧书。", pinyinFull: "Zhè shì jiù shū.", translation: "Dit is een oud boek." }] },
+            { id: 158, char: "坏", pinyin: "huài", meaning: "slecht, kapot", sentences: [{ chinese: "电脑坏了。", pinyinFull: "Diànnǎo huài le.", translation: "De computer is kapot." }] },
+            { id: 159, char: "优", pinyin: "yōu", meaning: "uitstekend", sentences: [{ chinese: "优秀的学生。", pinyinFull: "Yōuxiù de xuésheng.", translation: "Een uitstekende student." }] },
+            { id: 160, char: "美", pinyin: "měi", meaning: "mooi", sentences: [{ chinese: "风景很美。", pinyinFull: "Fēngjǐng hěn měi.", translation: "Het landschap is prachtig." }] },
+            { id: 161, char: "丑", pinyin: "chǒu", meaning: "lelijk", sentences: [{ chinese: "一点也不丑。", pinyinFull: "Yìdiǎn yě bù chǒu.", translation: "Het is helemaal niet lelijk." }] },
+            { id: 162, char: "南", pinyin: "nán", meaning: "zuid", sentences: [{ chinese: "去南方旅游。", pinyinFull: "Qù nánfāng lǚyóu.", translation: "Naar het zuiden reizen." }] },
+            { id: 163, char: "北", pinyin: "běi", meaning: "noord", sentences: [{ chinese: "北京在北方。", pinyinFull: "Běijīng zài běifāng.", translation: "Peking ligt in het noorden." }] },
+            { id: 164, char: "东", pinyin: "dōng", meaning: "oost", sentences: [{ chinese: "太阳从东方升起。", pinyinFull: "Tàiyáng cóng dōngfāng shēngqǐ.", translation: "De zon komt op in het oosten." }] },
+            { id: 165, char: "西", pinyin: "xī", meaning: "west", sentences: [{ chinese: "太阳在西方落下。", pinyinFull: "Tàiyáng zài xīfāng luòxià.", translation: "De zon gaat onder in het westen." }] },
+            { id: 166, char: "左", pinyin: "zuǒ", meaning: "links", sentences: [{ chinese: "向左转。", pinyinFull: "Xiàng zuǒ zhuǎn.", translation: "Sla linksaf." }] },
+            { id: 167, char: "右", pinyin: "yòu", meaning: "rechts", sentences: [{ chinese: "向右转。", pinyinFull: "Xiàng yòu zhuǎn.", translation: "Sla rechtsaf." }] },
+            { id: 168, char: "前", pinyin: "qián", meaning: "voor, voorzijde", sentences: [{ chinese: "向前走。", pinyinFull: "Xiàng qián zǒu.", translation: "Loop naar voren." }] },
+            { id: 169, char: "后", pinyin: "hòu", meaning: "achter, na", sentences: [{ chinese: "我在后面。", pinyinFull: "Wǒ zài hòumiàn.", translation: "Ik ben aan de achterkant." }] },
+            { id: 170, char: "上", pinyin: "shàng", meaning: "boven, op", sentences: [{ chinese: "桌子上有书。", pinyinFull: "Zhuōzi shang yǒu shū.", translation: "Er ligt een boek op tafel." }] },
+            { id: 171, char: "下", pinyin: "xià", meaning: "onder, beneden", sentences: [{ chinese: "树下有阴凉。", pinyinFull: "Shù xià yǒu yīnliáng.", translation: "Er is schaduw onder de boom." }] },
+            { id: 172, char: "里", pinyin: "lǐ", meaning: "in, binnen", sentences: [{ chinese: "家里面很温暖。", pinyinFull: "Jiā lǐmiàn hěn wēnnuǎn.", translation: "Het is erg warm binnen in huis." }] },
+            { id: 173, char: "外", pinyin: "wài", meaning: "buiten", sentences: [{ chinese: "外面下雨了。", pinyinFull: "Wàimiàn xià yǔ le.", translation: "Het regent buiten." }] },
+            { id: 174, char: "进", pinyin: "jìn", meaning: "binnengaan", sentences: [{ chinese: "请进。", pinyinFull: "Qǐng jìn.", translation: "Kom binnen alstublieft." }] },
+            { id: 175, char: "出", pinyin: "chū", meaning: "uitgaan, naar buiten", sentences: [{ chinese: "请出去。", pinyinFull: "Qǐng chūqù.", translation: "Ga naar buiten alstublieft." }] },
+            { id: 176, char: "回", pinyin: "huí", meaning: "terugkeren", sentences: [{ chinese: "回家休息。", pinyinFull: "Huí jiā xiūxi.", translation: "Naar huis gaan om uit te rusten." }] },
+            { id: 177, char: "来", pinyin: "lái", meaning: "komen", sentences: [{ chinese: "欢迎来到这里。", pinyinFull: "Huānyíng lái dào zhělǐ.", translation: "Welkom hier." }] },
+            { id: 178, char: "去", pinyin: "qù", meaning: "gaan", sentences: [{ chinese: "我去超市。", pinyinFull: "Wǒ qù chāoshì.", translation: "Ik ga naar de supermarkt." }] },
+            { id: 179, char: "坐", pinyin: "zuò", meaning: "zitten", sentences: [{ chinese: "请坐下。", pinyinFull: "Qǐng zuò xià.", translation: "Ga alstublieft zitten." }] },
+            { id: 180, char: "站", pinyin: "zhàn", meaning: "staan, station", sentences: [{ chinese: "他在车站等车。", pinyinFull: "Tā zài chēzhàn děng chē.", translation: "Hij wacht op de bus bij de halte." }] },
+            { id: 181, char: "飞", pinyin: "fēi", meaning: "vliegen", sentences: [{ chinese: "鸟儿在飞。", pinyinFull: "Niǎor zài fēi.", translation: "De vogels vliegen." }] },
+            { id: 182, char: "跑", pinyin: "pǎo", meaning: "rennen", sentences: [{ chinese: "他在公园里跑步。", pinyinFull: "Tā zài gōngyuán li pǎobù.", translation: "Hij rent in het park." }] },
+            { id: 183, char: "跳", pinyin: "tiào", meaning: "springen, dansen", sentences: [{ chinese: "大家一起跳舞。", pinyinFull: "Dàjiā yìqǐ tiàowǔ.", translation: "Iedereen dansen samen." }] },
+            { id: 184, char: "唱", pinyin: "chàng", meaning: "zingen", sentences: [{ chinese: "她喜欢唱歌。", pinyinFull: "Tā xǐhuan chànggē.", translation: "Zij zingt graag liedjes." }] },
+            { id: 185, char: "画", pinyin: "huà", meaning: "tekenen, schilderij", sentences: [{ chinese: "他在画画。", pinyinFull: "Tā zài huà huà.", translation: "Hij is aan het schilderen." }] },
+            { id: 186, char: "洗", pinyin: "xǐ", meaning: "wassen", sentences: [{ chinese: "饭前要洗手。", pinyinFull: "Fàn qián yào xǐshǒu.", translation: "Was je handen voor het eten." }] },
+            { id: 187, char: "睡", pinyin: "shuì", meaning: "slapen", sentences: [{ chinese: "早点睡觉。", pinyinFull: "Zǎodiǎn shuìjiào.", translation: "Ga vroeg slapen." }] },
+            { id: 188, char: "醒", pinyin: "xǐng", meaning: "wakker worden", sentences: [{ chinese: "早上七点醒来。", pinyinFull: "Zǎoshang qī diǎn xǐng lái.", translation: "'s Ochtends om zeven uur wakker worden." }] },
+            { id: 189, char: "起", pinyin: "qǐ", meaning: "opstaan", sentences: [{ chinese: "起床刷牙。", pinyinFull: "Qǐchuáng shuāyá.", translation: "Opstaan en je tanden poetsen." }] },
+            { id: 190, char: "玩", pinyin: "wán", meaning: "spelen", sentences: [{ chinese: "孩子们在玩游戏。", pinyinFull: "Háizimen zài wán yóuxì.", translation: "De kinderen spelen een spelletje." }] },
+            { id: 191, char: "做", pinyin: "zuò", meaning: "maken, doen", sentences: [{ chinese: "你在做什么？", pinyinFull: "Nǐ zài zuò shénme?", translation: "Wat ben je aan het doen?" }] },
+            { id: 192, char: "作", pinyin: "zuò", meaning: "werken, maken", sentences: [{ chinese: "他在工作。", pinyinFull: "Tā zài gōngzuò.", translation: "Hij is aan het werk." }] },
+            { id: 193, char: "能", pinyin: "néng", meaning: "kunnen, in staat zijn", sentences: [{ chinese: "你能帮我吗？", pinyinFull: "Nǐ néng bāng wǒ ma?", translation: "Kun je mij helpen?" }] },
+            { id: 194, char: "会", pinyin: "huì", meaning: "kunnen (aangeleerd)", sentences: [{ chinese: "我会说汉语。", pinyinFull: "Wǒ huì shuō hànyǔ.", translation: "Ik kan Chinees spreken." }] },
+            { id: 195, char: "可", pinyin: "kě", meaning: "mogen, kunnen", sentences: [{ chinese: "你可以试试。", pinyinFull: "Nǐ kěyǐ shìshi.", translation: "Je mag het proberen." }] },
+            { id: 196, char: "以", pinyin: "yǐ", meaning: "volgens, door", sentences: [{ chinese: "我可以进来吗？", pinyinFull: "Wǒ kěyǐ jìnlái ma?", translation: "Mag ik binnenkomen?" }] },
+            { id: 197, char: "要", pinyin: "yào", meaning: "moeten, willen", sentences: [{ chinese: "我要去上课。", pinyinFull: "Wǒ yào qù shàngkè.", translation: "Ik moet naar les." }] },
+            { id: 198, char: "就", pinyin: "jiù", meaning: "dan, precies", sentences: [{ chinese: "这样就可以了。", pinyinFull: "Zhèyàng jiù kěyǐ le.", translation: "Zo is het goed." }] },
+            { id: 199, char: "也", pinyin: "yě", meaning: "ook", sentences: [{ chinese: "我也喜欢学中文。", pinyinFull: "Wǒ yě xǐhuan xué zhōngwén.", translation: "Ik vind Chinees leren ook leuk." }] },
+            { id: 200, char: "都", pinyin: "dōu", meaning: "allemaal, beiden", sentences: [{ chinese: "大家都很高兴。", pinyinFull: "Dàjiā dōu hěn gāoxìng.", translation: "Iedereen is erg blij." }] }
+        ];
+
+        function normalizePinyin(str) {
+            return str.toLowerCase()
+                      .replace(/[\s\-\u0300-\u036f]/g, "")
+                      .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        }
+
+        const compoundWords = [
+            { word: "米饭", pinyin: "mǐfàn", searchPinyin: "mifan", translation: "rijst (gekookt)", chars: ["米", "饭"] },
+            { word: "面条", pinyin: "miàntiáo", searchPinyin: "miantiao", translation: "pasta, noedels", chars: ["面", "条"] },
+            { word: "土豆", pinyin: "tǔdòu", searchPinyin: "tudou", translation: "aardappel", chars: ["土", "豆"] },
+            { word: "钱", pinyin: "qián", searchPinyin: "qian", translation: "geld", chars: ["钱"] },
+            { word: "银行", pinyin: "yínháng", searchPinyin: "yinhang", translation: "bank", chars: ["银", "行"] },
+            { word: "咖啡", pinyin: "kāfēi", searchPinyin: "kafei", translation: "koffie", chars: ["咖", "啡"] },
+            { word: "超市", pinyin: "chāoshì", searchPinyin: "chaoshi", translation: "supermarkt", chars: ["超", "市"] }
+        ];
+
+        let userStatus = JSON.parse(localStorage.getItem('200_hanzi_trainer_status')) || {};
+        let currentSet = [];
+        let activeWriter = null;
+
+        function speakChinese(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'zh-CN';
+                utterance.rate = 0.85;
+
+                const voices = window.speechSynthesis.getVoices();
+                const cnVoice = voices.find(v => v.lang === 'zh-CN' || v.lang.includes('zh'));
+                if (cnVoice) utterance.voice = cnVoice;
+
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        function openGeminiPrompt(char, pinyin, meaning) {
+            const promptText = `Leg uit hoe ik het Chinese karakter ${char} (${pinyin} - ${meaning}) beter kan onthouden. Breek het karakter af in radicalen/bouwstenen en geef creatieve ezelsbruggetjes om de vorm, betekenis en pinyin te onthouden.`;
+            
+            navigator.clipboard.writeText(promptText).then(() => {
+                const toast = document.getElementById('toast-notification');
+                toast.classList.remove('hidden');
+                setTimeout(() => toast.classList.add('hidden'), 4000);
+                
+                window.open('https://gemini.google.com', '_blank');
+            }).catch(err => {
+                window.open('https://gemini.google.com', '_blank');
+            });
+        }
+
+        function loadNewRandomSet() {
+            const sizeSelect = document.getElementById('set-size-select');
+            const setSize = sizeSelect ? parseInt(sizeSelect.value) : 5;
+            
+            let shuffled = [...fullDatabase].sort(() => 0.5 - Math.random());
+            currentSet = shuffled.slice(0, setSize);
+            document.getElementById('search-input').value = ''; 
+            document.getElementById('set-info').textContent = `Huidige set: willekeurige selectie van ${setSize} tekens uit de database van 200.`;
+            renderApp();
+        }
+
+        function saveStatus() {
+            localStorage.setItem('200_hanzi_trainer_status', JSON.stringify(userStatus));
+            updateProgress();
+        }
+
+        function updateProgress() {
+            const greenCount = Object.values(userStatus).filter(s => s === 'green').length;
+            document.getElementById('progress-count').textContent = greenCount;
+            document.getElementById('total-database-count').textContent = fullDatabase.length;
+        }
+
+        function getPinyinForChar(char) {
+            let cleanChar = char.charAt(0);
+            let foundInDb = fullDatabase.find(item => item.char.charAt(0) === cleanChar);
+            if (foundInDb) return foundInDb.pinyin;
+            return cleanChar; 
+        }
+
+        function openWriterModal(char) {
+            const modal = document.getElementById('writer-modal');
+            const title = document.getElementById('modal-char-title');
+            const targetContainer = document.getElementById('character-target');
+            
+            title.textContent = `Karakter: ${char}`;
+            targetContainer.innerHTML = '';
+            
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.remove('opacity-0'), 10);
+
+            activeWriter = HanziWriter.create('character-target', char, {
+                width: 170,
+                height: 170,
+                padding: 10,
+                showOutline: true,
+                strokeAnimationSpeed: 1,
+                delayBetweenStrokes: 300,
+                strokeColor: '#d96b27',
+                radicalColor: '#222222'
+            });
+
+            activeWriter.animateCharacter();
+        }
+
+        function animateWriter() {
+            if (activeWriter) activeWriter.animateCharacter();
+        }
+
+        function closeWriterModal() {
+            const modal = document.getElementById('writer-modal');
+            modal.classList.add('opacity-0');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        function renderCompoundCard(comp) {
+            let charsHtml = '';
+            comp.chars.forEach(c => {
+                charsHtml += `<span class="compound-token relative cursor-pointer px-2.5 py-1 rounded-xl bg-amber-100 hover:bg-amber-200 text-atelier-dark chinese-font transition border border-stone-400" onclick="showCompoundCharPinyin(event, this, '${c}')" title="Klik voor pinyin">${c}</span>`;
+            });
+
+            return `
+                <div class="col-span-full bg-atelier-card rounded-3xl border-2 border-atelier-dark p-6 shadow-md mb-4">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <span class="text-xs font-bold uppercase tracking-wider text-white bg-atelier-primary px-2.5 py-1 rounded-full border border-atelier-dark">Samengesteld woord</span>
+                            <h2 class="text-2xl font-bold text-atelier-dark mt-2">${comp.translation} <span class="text-sm font-normal text-stone-600">(${comp.pinyin} / ${comp.word})</span></h2>
+                        </div>
+                        <div class="flex items-center gap-2 text-3xl font-bold flex-wrap">
+                            ${charsHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function showCompoundCharPinyin(event, element, char) {
+            event.stopPropagation();
+            const target = element;
+            const existing = target.querySelector('.char-popup');
+            if (existing) existing.remove();
+
+            let pinyin = getPinyinForChar(char);
+            const popup = document.createElement('span');
+            popup.className = 'char-popup absolute -top-8 left-1/2 -translate-x-1/2 bg-atelier-dark text-white text-[11px] px-2.5 py-1 rounded-lg shadow-xl z-20 whitespace-nowrap font-sans tracking-wide';
+            popup.textContent = pinyin;
+            target.style.position = 'relative';
+            target.appendChild(popup);
+
+            setTimeout(() => popup.remove(), 3000);
+        }
+
+        function renderInteractiveSentence(sentenceObj) {
+            const chars = Array.from(sentenceObj.chinese);
+            let html = `<div class="sentence-box relative cursor-pointer select-none p-2.5 rounded-xl hover:bg-stone-200/50 transition border border-transparent hover:border-stone-400 group">`;
+            
+            html += `<div class="flex justify-between items-center gap-2">`;
+            html += `<div class="text-base font-medium text-stone-900 chinese-font flex flex-wrap gap-1 items-center">`;
+            chars.forEach((c) => {
+                if (c.trim() === '') {
+                    html += `<span class="mx-0.5"></span>`;
+                } else {
+                    html += `<span class="word-token relative px-1 rounded hover:bg-amber-200 hover:text-atelier-dark transition" data-char="${c}" onclick="showWordPinyin(event, this)" title="Klik voor pinyin">${c}</span>`;
+                }
+            });
+            html += `</div>`;
+
+            html += `<div class="flex items-center gap-1.5 whitespace-nowrap">`;
+            html += `<button onclick="event.stopPropagation(); speakChinese('${sentenceObj.chinese}')" title="Luister naar Chinese uitspraak" class="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-atelier-dark border border-stone-400 rounded-lg text-xs font-medium transition flex items-center gap-1 shadow-xs">🔊 <span>Hoor</span></button>`;
+            html += `<button onclick="copyFullSentence(event, '${sentenceObj.chinese}', '${sentenceObj.pinyinFull}', '${sentenceObj.translation}')" title="Kopieer zin inclusief pinyin en vertaling" class="copy-btn px-2.5 py-1 bg-stone-200 hover:bg-amber-200 text-atelier-dark border border-stone-400 rounded-lg text-xs font-medium transition flex items-center gap-1 shadow-xs">📋 <span>Kopieer</span></button>`;
+            html += `</div>`;
+
+            html += `</div>`;
+
+            html += `<div class="full-pinyin text-xs text-atelier-primary font-semibold mt-1.5 hidden bg-amber-100 px-2 py-1 rounded-lg border border-atelier-primary/40">${sentenceObj.pinyinFull}</div>`;
+            html += `<div class="text-xs text-stone-600 mt-1 font-normal">${sentenceObj.translation}</div>`;
+            html += `</div>`;
+            return html;
+        }
+
+        function copyFullSentence(event, chinese, pinyin, translation) {
+            event.stopPropagation();
+            const btn = event.currentTarget;
+            const textToCopy = `${chinese}\n${pinyin}\n${translation}`;
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const originalContent = btn.innerHTML;
+                btn.innerHTML = "✅ <span>Gekopieerd!</span>";
+                btn.classList.add('bg-emerald-200', 'text-emerald-950', 'border-emerald-500');
+
+                setTimeout(() => {
+                    btn.innerHTML = originalContent;
+                    btn.classList.remove('bg-emerald-200', 'text-emerald-950', 'border-emerald-500');
+                }, 2000);
+            });
+        }
+
+        function showWordPinyin(event, element) {
+            event.stopPropagation();
+            const target = element;
+            const char = target.getAttribute('data-char');
+            const existing = target.querySelector('.pinyin-popup');
+            if (existing) existing.remove();
+
+            let pinyin = getPinyinForChar(char);
+            const popup = document.createElement('span');
+            popup.className = 'pinyin-popup absolute -top-8 left-1/2 -translate-x-1/2 bg-atelier-dark text-white text-[11px] px-2.5 py-1 rounded-lg shadow-xl z-20 whitespace-nowrap font-sans tracking-wide';
+            popup.textContent = pinyin;
+            target.style.position = 'relative';
+            target.appendChild(popup);
+
+            setTimeout(() => popup.remove(), 3000);
+        }
+
+        function revealPinyin(event, id, pinyinText) {
+            event.stopPropagation();
+            const btn = event.currentTarget;
+            const container = btn.parentElement.querySelector('.popup-display');
+            container.textContent = pinyinText;
+            container.classList.remove('hidden');
+            setTimeout(() => container.classList.add('hidden'), 3000);
+        }
+
+        function revealMeaning(event, id, meaningText) {
+            event.stopPropagation();
+            const btn = event.currentTarget;
+            const container = btn.parentElement.querySelector('.popup-display');
+            container.textContent = meaningText;
+            container.classList.remove('hidden');
+            setTimeout(() => container.classList.add('hidden'), 3000);
+        }
+
+        function renderApp() {
+            const grid = document.getElementById('hanzi-grid');
+            const filter = document.getElementById('filter-status').value;
+            const rawSearchQuery = document.getElementById('search-input').value.trim();
+            const searchQuery = normalizePinyin(rawSearchQuery);
+            const setInfo = document.getElementById('set-info');
+            const setSize = document.getElementById('set-size-select').value;
+
+            grid.innerHTML = '';
+
+            let matchedCompound = null;
+            let targetDataset = currentSet;
+
+            if (searchQuery.length > 0) {
+                matchedCompound = compoundWords.find(c => 
+                    c.translation.toLowerCase().includes(searchQuery) || 
+                    normalizePinyin(c.word).includes(searchQuery) || 
+                    c.searchPinyin.includes(searchQuery)
+                );
+
+                let matchedChars = matchedCompound ? matchedCompound.chars : [];
+
+                targetDataset = fullDatabase.filter(item => {
+                    let cleanBaseChar = item.char.charAt(0);
+                    const matchesStandard = cleanBaseChar.toLowerCase().includes(searchQuery) || 
+                                            normalizePinyin(item.pinyin).includes(searchQuery) || 
+                                            item.meaning.toLowerCase().includes(searchQuery);
+                    
+                    const matchesCompoundChar = matchedChars.includes(cleanBaseChar);
+
+                    if (matchedCompound) {
+                        return matchesCompoundChar;
+                    }
+
+                    const matchesSentence = item.sentences.some(s => 
+                        s.chinese.toLowerCase().includes(searchQuery) || 
+                        normalizePinyin(s.pinyinFull).includes(searchQuery) || 
+                        s.translation.toLowerCase().includes(searchQuery)
+                    );
+
+                    return matchesStandard || matchesSentence;
+                });
+
+                setInfo.textContent = `Zoekresultaten voor: "${rawSearchQuery}" (${targetDataset.length} resultaten gevonden)`;
+            } else {
+                setInfo.textContent = `Huidige set: willekeurige selectie van ${setSize} tekens uit de database van 200.`;
+            }
+
+            if (matchedCompound) {
+                grid.insertAdjacentHTML('beforeend', renderCompoundCard(matchedCompound));
+            }
+
+            const filteredData = targetDataset.filter(item => {
+                const status = userStatus[item.id] || 'none';
+                if (filter !== 'all' && status !== filter) return false;
+                return true;
+            });
+
+            if (filteredData.length === 0 && !matchedCompound) {
+                grid.innerHTML = `
+                    <div class="col-span-full bg-atelier-card rounded-3xl border-2 border-atelier-dark p-8 shadow-md text-center">
+                        <div class="w-12 h-12 mx-auto mb-3 rounded-2xl bg-amber-200 text-atelier-dark flex items-center justify-center text-xl font-bold border border-atelier-dark">🔍</div>
+                        <h3 class="text-base font-bold text-atelier-dark mb-1">Geen resultaat gevonden voor "${rawSearchQuery}"</h3>
+                        <p class="text-xs text-stone-600 max-w-md mx-auto mb-4">Dit woord of pinyin-patroon staat niet in de index.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            filteredData.forEach(item => {
+                const status = userStatus[item.id] || 'none';
+                
+                let statusBorderColor = 'border-atelier-dark';
+                let statusCardBg = 'bg-atelier-card';
+                let statusBadge = '';
+
+                if (status === 'green') {
+                    statusBorderColor = 'border-emerald-600';
+                    statusCardBg = 'bg-emerald-50';
+                    statusBadge = '<span class="text-xs bg-emerald-600 text-white px-3 py-1 rounded-full font-bold shadow-xs border border-atelier-dark">🟢 Groen</span>';
+                } else if (status === 'orange') {
+                    statusBorderColor = 'border-amber-600';
+                    statusCardBg = 'bg-amber-50';
+                    statusBadge = '<span class="text-xs bg-amber-600 text-white px-3 py-1 rounded-full font-bold shadow-xs border border-atelier-dark">🟠 Oranje</span>';
+                } else if (status === 'red') {
+                    statusBorderColor = 'border-rose-600';
+                    statusCardBg = 'bg-rose-50';
+                    statusBadge = '<span class="text-xs bg-rose-600 text-white px-3 py-1 rounded-full font-bold shadow-xs border border-atelier-dark">🔴 Rood</span>';
+                }
+
+                const card = document.createElement('div');
+                card.className = `${statusCardBg} rounded-3xl border-2 ${statusBorderColor} p-6 shadow-md flex flex-col justify-between transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5`;
+                
+                let displayChar = item.char.charAt(0);
+
+                let sentencesHtml = '';
+                item.sentences.forEach(s => {
+                    sentencesHtml += renderInteractiveSentence(s);
+                });
+
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="flex items-center gap-3">
+                                <div onclick="openWriterModal('${displayChar}')" title="Klik om schrijfvolgorde te zien" class="w-16 h-16 rounded-2xl bg-atelier-dark hover:bg-atelier-primary text-white flex items-center justify-center text-4xl chinese-font shadow-md cursor-pointer transition transform hover:scale-105 border border-atelier-dark" role="button">${displayChar}</div>
+                                <button onclick="openGeminiPrompt('${displayChar}', '${item.pinyin}', '${item.meaning}')" title="Vraag AI Gemini om ezelsbruggetjes" class="w-10 h-10 rounded-2xl bg-amber-100 hover:bg-amber-200 text-atelier-dark flex items-center justify-center text-lg font-bold shadow-sm transition border border-stone-400">ℹ️</button>
+                            </div>
+                            <div>
+                                ${statusBadge}
+                            </div>
+                        </div>
+
+                        <div class="relative bg-stone-100 border border-stone-400 p-2.5 rounded-2xl flex items-center justify-between gap-2 my-4 shadow-xs">
+                            <div class="popup-display hidden absolute inset-0 bg-atelier-dark text-white text-sm font-bold rounded-2xl flex items-center justify-center px-3 tracking-wide z-10 text-center shadow-md"></div>
+                            
+                            <button onclick="revealPinyin(event, ${item.id}, '${item.pinyin}')" class="flex-1 py-1.5 px-3 bg-white hover:bg-stone-50 border border-stone-400 text-xs font-semibold text-stone-800 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5">
+                                <span>🔊 Pinyin</span>
+                            </button>
+                            <button onclick="revealMeaning(event, ${item.id}, '${item.meaning}')" class="flex-1 py-1.5 px-3 bg-white hover:bg-stone-50 border border-stone-400 text-xs font-semibold text-stone-800 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5">
+                                <span>💡 Betekenis</span>
+                            </button>
+                        </div>
+
+                        <div class="space-y-2 mt-4 pt-4 border-t border-stone-300">
+                            <p class="text-[11px] font-bold text-stone-600 uppercase tracking-wider">Voorbeeldzinnen (Dubbelklik zin)</p>
+                            ${sentencesHtml}
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2 mt-6 pt-4 border-t border-stone-300">
+                        <button onclick="setStatus(${item.id}, 'green')" class="flex-1 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm border border-atelier-dark ${status === 'green' ? 'ring-2 ring-atelier-dark ring-offset-2' : ''}">Groen</button>
+                        <button onclick="setStatus(${item.id}, 'orange')" class="flex-1 py-2 text-xs font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white transition shadow-sm border border-atelier-dark ${status === 'orange' ? 'ring-2 ring-atelier-dark ring-offset-2' : ''}">Oranje</button>
+                        <button onclick="setStatus(${item.id}, 'red')" class="flex-1 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white transition shadow-sm border border-atelier-dark ${status === 'red' ? 'ring-2 ring-atelier-dark ring-offset-2' : ''}">Rood</button>
+                    </div>
+                `;
+
+                const sentenceBoxes = card.querySelectorAll('.sentence-box');
+                sentenceBoxes.forEach((box) => {
+                    box.addEventListener('dblclick', () => {
+                        const fullPinyinEl = box.querySelector('.full-pinyin');
+                        fullPinyinEl.classList.remove('hidden');
+                        setTimeout(() => fullPinyinEl.classList.add('hidden'), 3000);
+                    });
+                });
+
+                grid.appendChild(card);
+            });
+        }
+
+        function setStatus(id, status) {
+            if (userStatus[id] === status) {
+                delete userStatus[id];
+            } else {
+                userStatus[id] = status;
+            }
+            saveStatus();
+            renderApp();
+        }
+
+        document.getElementById('filter-status').addEventListener('change', renderApp);
+        document.getElementById('search-input').addEventListener('input', renderApp);
+
+        loadNewRandomSet();
+        updateProgress();
+    </script>
+</body>
+</html>
